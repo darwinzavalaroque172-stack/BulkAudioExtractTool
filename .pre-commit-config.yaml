@@ -8,6 +8,7 @@ repos:
     hooks:
       - id: check-ast
       - id: check-builtin-literals
+      - id: check-executables-have-shebangs
       - id: check-case-conflict
       - id: check-merge-conflict
       - id: check-json
@@ -18,6 +19,13 @@ repos:
       - id: check-vcs-permalinks
       - id: check-shebang-scripts-are-executable
       - id: trailing-whitespace
+        exclude: |
+          (?x)^(
+              .*\.svg|
+              .*\.png
+          )
+      - id: name-tests-test
+      - id: no-commit-to-branch
 
   - repo: https://github.com/pre-commit/pygrep-hooks
     rev: v1.10.0
@@ -34,18 +42,30 @@ repos:
       - id: pycln
         args: [--all]
 
-  - repo: https://github.com/psf/black
-    rev: 23.12.1
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: "v4.0.0-alpha.8"
     hooks:
-      - id: black
-        args: [--safe]
+      - id: prettier
+        types_or: [yaml, toml, markdown, json]
+        additional_dependencies:
+          - "prettier-plugin-toml"
 
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
+  - repo: https://github.com/pycqa/bandit
+    rev: 1.7.7
     hooks:
-      - id: isort
-        name: isort (python)
-        args: ["--profile", "black"]
+      - id: bandit
+        name: bandit
+        exclude: ^tests/
+        args:
+          - -r
+          - src
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.8.0
@@ -53,14 +73,8 @@ repos:
       - id: mypy
         additional_dependencies: [rich >= 13.7.0, rich-argparse >= 1.4.0]
 
-  - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.0
-    hooks:
-      - id: pyupgrade
-        args: [--py311-plus]
-
   - repo: https://github.com/python-poetry/poetry
-    rev: 1.7.0
+    rev: 1.8.0
     hooks:
       - id: poetry-check
       - id: poetry-lock

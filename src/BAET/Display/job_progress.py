@@ -1,21 +1,30 @@
-import ffmpeg
+"""Display job progress for FFmpeg audio extraction."""
+
 from bidict import MutableBidirectionalMapping, bidict
 from rich.console import Console, ConsoleOptions, ConsoleRenderable, Group, RenderResult
 from rich.highlighter import ReprHighlighter
 from rich.padding import Padding
 from rich.progress import BarColumn, Progress, TaskID, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 
-from ._aliases import StreamTaskBiMap
-from ._console import app_console
-from ._logging import create_logger
-from .jobs import FFmpegJob
+import ffmpeg
+from BAET._config.console import app_console
+from BAET._config.logging import create_logger
+from BAET.FFmpeg.jobs import AudioExtractJob, stream_duration_ms
+from BAET.typing import StreamTaskBiMap
 
 logger = create_logger()
 
 
 class FFmpegJobProgress(ConsoleRenderable):
+    """Job progress display for FFmpeg audio extraction.
+
+    Attributes
+    ----------
+    job : AudioExtractJob
+    """
+
     # TODO: Need mediator to consumer/producer printing
-    def __init__(self, job: FFmpegJob):
+    def __init__(self, job: AudioExtractJob) -> None:
         self.job = job
 
         bar_blue = "#5079AF"
@@ -63,7 +72,7 @@ class FFmpegJobProgress(ConsoleRenderable):
             task = self._stream_task_progress.add_task(
                 "Waiting...",
                 start=False,
-                total=self.job.stream_duration_ms(stream),
+                total=stream_duration_ms(stream),
                 stream_index=stream_index,
                 status="[plum4]Waiting[/]",
             )
@@ -73,6 +82,20 @@ class FFmpegJobProgress(ConsoleRenderable):
         self._stream_task_bimap = stream_task_bimap
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        """Render the job progress display.
+
+        Parameters
+        ----------
+        console : Console
+            The console to render to.
+        options : ConsoleOptions
+            The console options.
+
+        Returns
+        -------
+        RenderResult
+            The render result.
+        """
         yield Group(
             self._overall_progress,
             Padding(self._stream_task_progress, (1, 0, 1, 5)),
@@ -81,9 +104,11 @@ class FFmpegJobProgress(ConsoleRenderable):
     def _run_task(self, task: TaskID) -> None:
         stream_index: int = self._stream_task_bimap.inverse[task]
 
-        logger.info(f"Extracting audio stream {stream_index} of {self.job.input_file.name}")
+        logger.info("Extracting audio stream %d of %r", stream_index, self.job.input_file.name)
 
-        output = self.job.indexed_outputs[stream_index]
+        output = self.job.stream_indexed_outputs[stream_index]
+
+        logger.debug("Running: %s", " ".join(ffmpeg.compile(output)))
 
         proc = ffmpeg.run_async(
             output,
@@ -93,6 +118,12 @@ class FFmpegJobProgress(ConsoleRenderable):
 
         try:
             with proc as p:
+                if p is None:
+                    raise ValueError("FFmpeg process failed to start")
+
+                if p.stdout is None:
+                    raise ValueError("FFmpeg process stdout is None")
+
                 for line in p.stdout:
                     decoded = line.decode("utf-8").strip()
                     if "out_time_ms" in decoded:
@@ -102,16 +133,17 @@ class FFmpegJobProgress(ConsoleRenderable):
                             completed=float(val),
                         )
 
-            if p.returncode != 0:
-                raise RuntimeError(p.stderr.read().decode("utf-8"))
-
-        except RuntimeError as e:
+                err = p.stderr.read().strip() if p.stderr is not None else b"No stderr output was captured."
+            if proc.wait() != 0:
+                raise RuntimeError(err.decode("utf-8"))
+        except (RuntimeError, ValueError) as e:
             logger.critical("%s: %s", type(e).__name__, e)
             raise e
 
     def start(self) -> None:
+        """Start the job and render the progress display."""
         self._overall_progress.start_task(self._overall_progress_task)
-        logger.info(f"Stream index to job task ID bimap: {self._stream_task_bimap}")
+        logger.info("Stream index to job task ID bimap: %r", self._stream_task_bimap)
         for task in self._stream_task_bimap.values():
             self._stream_task_progress.start_task(task)
 
@@ -119,8 +151,9 @@ class FFmpegJobProgress(ConsoleRenderable):
 
             try:
                 self._run_task(task)
+                self._stream_task_progress.update(task, completed=self._stream_task_progress.tasks[task].total)
                 self._stream_task_progress.update(task, status="[bold green]Complete[/]")
-            except RuntimeError as e:
+            except (RuntimeError, ValueError):
                 self._stream_task_progress.update(task, status="[bold red]ERROR[/]")
             finally:
                 self._stream_task_progress.stop_task(task)
