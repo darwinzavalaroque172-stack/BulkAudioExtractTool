@@ -1,4 +1,4 @@
-<img src="./images/logo.png" alt="Logo" style="display: block; max-width: 50%; margin: auto">
+https://github.com/jab/bidict/blob/main/README.rst<img src="./images/logo.png" alt="Logo" style="display: block; max-width: 50%; margin: auto">
 
 <h2 align="center">
     A commandline tool to bulk export audio tracks.
