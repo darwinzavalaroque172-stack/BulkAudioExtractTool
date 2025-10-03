@@ -1,4 +1,7 @@
-https://github.com/jab/bidict/blob/main/README.rst<img src="./images/logo.png" alt="Logo" style="display: block; max-width: 50%; margin: auto">
+{
+  "TOOL_ADD_ISSUE_COMMENT_DESCRIPTION": "an alternative description",
+  "TOOL_CREATE_BRANCH_DESCRIPTION": "Create a new branch in a GitHub repository"
+}https://github.com/jab/bidict/blob/main/README.rst<img src="./images/logo.png" alt="Logo" style="display: block; max-width: 50%; margin: auto">
 
 <h2 align="center">A commandline tool to bulk export audio tracks.
 </h2>
